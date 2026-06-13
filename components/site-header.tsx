@@ -10,7 +10,7 @@ const NAV = [
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-bg/80 backdrop-blur">
+    <header className="sticky top-0 z-40 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-5">
         {/* 회전하는 LP판 로고: hover하면 멈추고 저작자 표시가 뜬다.
             홈 링크와 저작자 링크는 형제 요소(앵커 중첩 방지). */}
@@ -20,7 +20,7 @@ export function SiteHeader() {
             aria-label={`${site.name} 홈`}
             className="flex items-center rounded-full"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {}
             {/* 검은 바이닐이라 다크 배경에 묻힘 → 다크모드에서 반전+색상보정으로 보이게 */}
             <img
               src={site.logo.src}
