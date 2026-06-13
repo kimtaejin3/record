@@ -112,57 +112,7 @@ body {
   animation: lp-spin 4s linear infinite;
 }
 
-/* ── 히어로: 픽셀 캐릭터 모션 ──────────────────────────── */
-@keyframes spr-drift {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(var(--travel, 60px));
-  }
-}
-@keyframes spr-bob {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(-3px);
-  }
-}
-@keyframes spr-float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-9px);
-  }
-}
-@keyframes spr-shadow {
-  from {
-    transform: scaleX(1);
-    opacity: 0.45;
-  }
-  to {
-    transform: scaleX(0.7);
-    opacity: 0.25;
-  }
-}
-.spr-drift {
-  animation: spr-drift var(--dur, 8s) ease-in-out var(--delay, 0s) infinite
-    alternate;
-}
-.spr-bob {
-  animation: spr-bob 0.5s ease-in-out infinite alternate;
-}
-.spr-float {
-  animation: spr-float var(--floatdur, 4s) ease-in-out infinite;
-}
-.spr-shadow {
-  animation: spr-shadow 0.5s ease-in-out infinite alternate;
-}
-
-/* 모션 최소화 선호 시: 타이핑은 전체 노출, 캐릭터는 정지 */
+/* 모션 최소화 선호 시: 타이핑은 전체 노출, 로고 회전 정지 */
 @media (prefers-reduced-motion: reduce) {
   .hero-line {
     clip-path: inset(0 0 0 0);
@@ -172,10 +122,6 @@ body {
     animation: none;
     opacity: 1;
   }
-  .spr-drift,
-  .spr-bob,
-  .spr-float,
-  .spr-shadow,
   .lp-spin {
     animation: none;
   }

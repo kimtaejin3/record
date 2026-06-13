@@ -14,7 +14,7 @@ export const site = {
   logo: {
     src: "/assets/lp-disc.png",
     attribution: {
-      author: "<Flaticon 제작자 이름>",
+      author: "PIXARTIST",
       href: "https://www.flaticon.com/free-icons/lp",
     },
   },
@@ -26,8 +26,8 @@ export const site = {
     lines: [
       { type: "cmd", text: "whoami" },
       { type: "out", text: "Frontend Engineer" },
-      { type: "cmd", text: "cat blog.md" },
-      { type: "out", text: "프론트엔드를 코드로 돌려보며 기록합니다" },
+      { type: "cmd", text: "cat interested.md" },
+      { type: "out", text: "React Native, Animation, Interaction, Open Source" },
     ],
   },
 } as const;
