@@ -7,8 +7,16 @@ export const site = {
   name: "내 블로그",
   /** 한 줄 설명 (메타 description, 푸터) */
   description: "프론트엔드를 공부하고 기록하는 공간.",
+  /**
+   * 히어로 터미널에 타이핑되는 줄들. 자유롭게 수정하세요.
+   * type "cmd" → "$ " 프롬프트가 붙는 명령어 / "out" → 명령 출력.
+   */
   hero: {
-    title: "여기에 한 줄 제목",
-    subtitle: "여기에 블로그를 한 문장으로 소개하세요.",
+    lines: [
+      { type: "cmd", text: "whoami" },
+      { type: "out", text: "Frontend Engineer" },
+      { type: "cmd", text: "cat blog.md" },
+      { type: "out", text: "프론트엔드를 코드로 돌려보며 기록합니다" },
+    ],
   },
 } as const;

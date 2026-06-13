@@ -73,6 +73,103 @@ body {
   }
 }
 
+/* ── 히어로: 터미널 타자기 효과 (JS 없이 순수 CSS) ────────── */
+@keyframes hero-type {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes hero-caret {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+.hero-line {
+  display: inline-block;
+  clip-path: inset(0 100% 0 0);
+  animation: hero-type var(--dur, 0.6s) steps(var(--n, 20)) var(--delay, 0s)
+    forwards;
+}
+.hero-caret {
+  animation: hero-caret 1s steps(1) infinite;
+}
+
+/* ── 히어로: 픽셀 캐릭터 모션 ──────────────────────────── */
+@keyframes spr-drift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(var(--travel, 60px));
+  }
+}
+@keyframes spr-bob {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-3px);
+  }
+}
+@keyframes spr-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-9px);
+  }
+}
+@keyframes spr-shadow {
+  from {
+    transform: scaleX(1);
+    opacity: 0.45;
+  }
+  to {
+    transform: scaleX(0.7);
+    opacity: 0.25;
+  }
+}
+.spr-drift {
+  animation: spr-drift var(--dur, 8s) ease-in-out var(--delay, 0s) infinite
+    alternate;
+}
+.spr-bob {
+  animation: spr-bob 0.5s ease-in-out infinite alternate;
+}
+.spr-float {
+  animation: spr-float var(--floatdur, 4s) ease-in-out infinite;
+}
+.spr-shadow {
+  animation: spr-shadow 0.5s ease-in-out infinite alternate;
+}
+
+/* 모션 최소화 선호 시: 타이핑은 전체 노출, 캐릭터는 정지 */
+@media (prefers-reduced-motion: reduce) {
+  .hero-line {
+    clip-path: inset(0 0 0 0);
+    animation: none;
+  }
+  .hero-caret {
+    animation: none;
+    opacity: 1;
+  }
+  .spr-drift,
+  .spr-bob,
+  .spr-float,
+  .spr-shadow {
+    animation: none;
+  }
+}
+
 /* ── 코드 하이라이팅 (rehype-pretty-code, 듀얼 테마) ──────── */
 /* 라이트=github-light, 다크=github-dark 두 색을 인라인 변수로 받아 토글 */
 html:not(.dark) [data-rehype-pretty-code-figure] code span {
