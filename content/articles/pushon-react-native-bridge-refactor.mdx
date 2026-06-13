@@ -1,0 +1,132 @@
+---
+title: "[푸쉬온] React Native 브릿지 코드 개선하기"
+description: "100ms Polling으로 네이티브 모듈과 통신하던 브릿지 코드를 NativeEventEmitter 기반 Event-driven 방식으로 개선한 과정."
+date: 2026-03-04
+tags: ["React Native", "앱 개발", "성능"]
+published: true
+---
+
+이전 글
+[[푸쉬온 앱 개발 회고] 처음으로 실제 유저가 생겼다](/articles/pushon-app-retrospective)
+
+이전 글에서는 [푸쉬온] 앱의 전반적인 회고 글을 썼습니다. 글에서 언급했다시피 푸쉬온에서는 몇가지 비효율적인 부분이 있었습니다. 그 중 하나를 이번 포스팅에서 소개하고 제가 어떻게 그 문제를 해결했는지 적어보려고 합니다.
+
+## 네이티브 모듈과의 브릿지 코드 문제점
+
+저는 얼굴 인식으로 푸쉬업 개수를 세는 네이티브 모듈을 개발했습니다. 안드로이드와 iOS 모두 개발하고 React Native에서는 같은 이름으로 네이티브 모듈을 참조하게 하여 공통적인 로직을 구현할 수 있었습니다.
+
+```ts
+//usePushUpManager.ts
+
+  const getPushupCount = useCallback(async () => {
+    try {
+      const currentCount = await PushupManager.getPushupCount();
+      setPushUpCount(currentCount);
+    } catch (error) {
+      console.error('Failed to get pushup count:', error);
+    }
+  }, []);
+
+  const getIsGoingDown = useCallback(async () => {
+    try {
+      const isGoingDownValue = await PushupManager.getIsGoingDown();
+      setIsGoingDown(isGoingDownValue);
+    } catch (error) {
+      console.error('Failed to get is going down:', error);
+    }
+  }, []);
+
+  useInterval(getIsGoingDown, isTracking ? PUSHUP_POLLING_INTERVAL : null);
+  useInterval(getPushupCount, isTracking ? PUSHUP_POLLING_INTERVAL : null);
+```
+
+`usePushUpManager.ts`의 코드입니다. 문제점은 useInterval을 통해 Polling 방식으로 네이티브 모듈과 브릿지 되어있다는 것입니다.
+
+푸쉬업을 하지 않은 상태에서도 네이티브 모듈과의 통신이 이루어집니다.
+
+이로 인해 발생하는 문제점은 다음과 같습니다.
+
+- 100ms에 1번, 1초에 10번이나 호출이 됩니다. 알아본 바로는 매 호출마다 JS와 네이티브 간 데이터 변환으로 16,384개 정수 배열 전송에 약 25ms가 소요된다는 벤치마크가 있다고 합니다. 100ms 간격으로 Polling을 하는데 직렬화 만으로도 호출 간격의 상당 부분을 차지합니다. 이로 인해 다른 로직이 방해받을 수 있습니다.
+- CPU 사용률 증가 → 발열 & 배터리 소모
+  불필요한 브릿지 호출이 CPU를 점유합니다. 특히 AR 세션처럼 이미 CPU/GPU를 많이 쓰는 상황에서 polling까지 더하면 발열이 심해지고 배터리 소모가 가속될 것으로 보입니다.
+
+현재로서는 Polling 방식의 오버헤드가 크지 않을 수 있으나 푸쉬업 시에 다양한 이벤트 처리 기능을 추가하는 경우 성능 문제의 원인이 될 수 있다고 생각했습니다.
+
+## Event-driven 방식으로 전환하기
+
+이에 대한 해결방법으로 Event-driven 방식으로 전환을 하였습니다. 100ms를 주기로 Polling을 하며 자원을 낭비하는 것이 아닌 네이티브 모듈에서 상태가 변함에 따라 Event를 발생시키는 것입니다. 그럼 클라이언트 측에서는 그 이벤트를 구독을 해서 상태가 변경되었을 때만 브릿지 호출을 하기에 효율적입니다.
+
+### 코드 변경
+
+Anroid에는 이미 원하는 상태에 대한 이벤트 emit 코드가 있었습니다. 따라서 swift 코드를 수정하고 `usePushUpManager.ts`만 수정하면 되었습니다.
+
+_swift 코드는 브릿지 헤더 등과 같은 수정 사항은 포스팅하지 않고 핵심 네이티브 모듈의 코드만 보여드리겠습니다._
+
+```swift
+  // Before
+  class PushupManager: NSObject {
+    @objc func getPushupCount(_ resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) { ... }
+    @objc func getIsGoingDown(_ resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) { ... }
+  }
+
+  // After
+  class PushupManager: RCTEventEmitter {
+    override func supportedEvents() -> [String]! {
+      return ["onPushupCount", "onPushupGoingDown"]
+    }
+    // startPushupSession에서 콜백 연결
+    recognition.onPushupCount = { [weak self] count in
+      self?.sendEvent(withName: "onPushupCount", body: ["count": count])
+    }
+    recognition.onGoingDown = { [weak self] isGoingDown in
+      self?.sendEvent(withName: "onPushupGoingDown", body: ["isGoingDown": isGoingDown])
+    }
+  }
+```
+
+- `getPushupCount`, `getIsGoingDown` 에 대한 Promise 메소드를 삭제하고 `supportEvents`를 추가했습니다.
+
+```ts
+  //Polling → NativeEventEmitter 리스너
+
+  // Before
+  import useInterval from './useInterval';
+  const PUSHUP_POLLING_INTERVAL = 100;
+
+  const getPushupCount = useCallback(async () => {
+    const currentCount = await PushupManager.getPushupCount();
+    setPushUpCount(currentCount);
+  }, []);
+  const getIsGoingDown = useCallback(async () => {
+    const isGoingDownValue = await PushupManager.getIsGoingDown();
+    setIsGoingDown(isGoingDownValue);
+  }, []);
+
+  useInterval(getPushupCount, isTracking ? PUSHUP_POLLING_INTERVAL : null);
+  useInterval(getIsGoingDown, isTracking ? PUSHUP_POLLING_INTERVAL : null);
+
+  // After
+  import { NativeEventEmitter } from 'react-native';
+  const pushupEventEmitter = new NativeEventEmitter(PushupManager);
+
+  useEffect(() => {
+    if (!isTracking) return;
+
+    const countSub = pushupEventEmitter.addListener('onPushupCount', (event) => {
+      setPushUpCount(event.count);
+    });
+    const goingDownSub = pushupEventEmitter.addListener('onPushupGoingDown', (event) => {
+      setIsGoingDown(event.isGoingDown);
+    });
+
+    return () => { countSub.remove(); goingDownSub.remove(); };
+  }, [isTracking]);
+```
+
+`usePushUpManager.ts` 의 코드를 Event-driven 방식으로 바꿔줍니다. 성능적으로도 비효율적인 부분을 개선함과 동시에 코드가 조금은 간결해진 것을 확인할 수 있습니다.
+
+기존에는 `PUSHUP_POLLING_INTERVAL`과 `useInterval` 등 여러 코드가 필요했는데 현재는 상태 변경 코드와 이벤트 구독 코드만 있으면 됩니다.
+
+## 마무리
+
+[푸쉬온] 덕분에 네이티브 모듈을 브릿지 하는 방법을 배우고 또 비효율적인 부분을 개선할 수 있었습니다. 앞으로도 이런 비효율적인 부분과 전반적인 사용자 경험 향상을 위해 많이 고민해보는 시간을 가지려고 합니다:0

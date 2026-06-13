@@ -1,0 +1,99 @@
+---
+title: "Node.js internalBinding typing 기여해보기"
+description: "Node.js internalBinding의 string_decoder 타입 정의를 추가해 코어에 기여한 과정."
+date: 2026-01-25
+tags: ["Node.js", "오픈소스 기여"]
+published: true
+---
+
+![node.js 로고](/images/nodejs-internalbinding-typing/01.jpg)
+
+## Node.js internalBinding과 타입 기여 알아보기
+
+Node.js 내부는 Javascript와 C++로 구성되어 있습니다. lib/디렉토리에 있는 Javascript 코드가 C++ 네이티브 코드와 소통할 때 internalBinding() 함수를 사용합니다.
+
+```md
+javaScript (lib/filename.js)
+ ↓
+internalBinding
+ ↓
+C++ Native Code (src/filename.cc)
+```
+
+Node.js 프로젝트 내에는 typings/internalBiding이라는 폴더가 존재합니다. 바로 c++ 바인딩의 Typescript 타입 정의 파일들을 모아둔 폴더입니다.
+
+이 타입 정의 파일들은 바인딩이 제공하는 속성과 함수들의 타입을 정의합니다.
+
+이 타입 정의가 있을 때의 장점으로는 아래와 같습니다.
+
+1. IDE 지원 향상: internalBinding()를 사용하는 코드에서 자동완성, 타입 체크 가능
+2. 개발자 경험 개선: Node.js 내부 코드를 수정하는 기여자들이 올바른 API를 사용하도록 도움
+3. 문서화: C++ 바인딩이 어떤 인터페이스를 노출하는지 명시적으로 문서화
+4. 타입 안전성: 잘못된 프로퍼티 접근이나 함수 호출을 컴파일 타임에 감지
+
+internalBinding 타입 기여는 일반 사용자보다는 Node.js 코어 개발자를 위한 것입니다.
+
+Node.js TSC(Technical Steering Committee)와 Next-10 팀이 정의한 "Suitable types for end-users" 우선순위에 해당하며, 이는 2021년부터 지속적으로 중요하게 다뤄지는 핵심 기술 우선순위라고 합니다.
+
+이에 따라, internalBinding 폴더에 타입 정의 파일을 추가하는 기여를 한다면 빠른 시간 내에 Merge가 될 것이라 생각해 기여를 시작하였습니다.
+
+## 기여 시도하기
+
+저는 internalBinding 중에 타입이 정의되지 않은 `string_decoder`의 타입을 추가하기로 했습니다.
+
+js 레이어에서 string_decoder를 사용하는 이유는 아래와 같습니다.
+
+string_decoder의 경우:
+
+1. 성능: UTF-8/UTF-16 멀티바이트 문자 처리는 바이트 단위 연산이 많아서 C++이 훨씬 빠름
+2. V8 통합: V8 엔진의 String::NewFromUtf8 같은 내부 API 직접 호출 가능
+3. 메모리 효율: 버퍼 복사 없이 직접 조작 가능
+
+기여를 하기 위해 typings > internalBinding 폴더에 string_decoder.d.ts 파일을 생성해줍니다.
+
+```ts title="typings/internalBinding/string_decoder.d.ts"
+declare namespace InternalStringDecoderBinding {
+  type Buffer = Uint8Array;
+}
+
+export interface StringDecoderBinding {
+  readonly kIncompleteCharactersStart: number;
+  readonly kIncompleteCharactersEnd: number;
+  readonly kMissingBytes: number;
+  readonly kBufferedBytes: number;
+  readonly kEncodingField: number;
+  readonly kNumFields: number;
+  readonly kSize: number;
+
+  readonly encodings: string[];
+
+  decode(decoder: InternalStringDecoderBinding.Buffer, buffer: ArrayBufferView): string;
+  flush(decoder: InternalStringDecoderBinding.Buffer): string;
+}
+```
+
+위 같이 string_decoder에 대한 타입 정의를 작성할 때는 `src/string_decoder.cc`의 InitializeStringDecoder 함수를 참고하여, SetMethod로 등록되는 함수들을 Typescript 인터페이스로 변환해줍니다. 또한 target에 Set되는 모든 상수도 변환해줍니다.
+
+```js title="typings/globals.d.ts"
+// ...생략...
+import { StringDecoderBinding } from './internalBinding/string_decoder';
+// ...생략...
+
+interface InternalBindingMap {
+// ...생략...
+	string_decoder: StringDecoderBinding;
+// ...생략...
+}
+```
+
+이후 위와 같이 typings > global.d.ts 파일에 string_decoder를 추가해줍니다.
+
+## 기여 결과
+
+[https://github.com/nodejs/node/pull/61368](https://github.com/nodejs/node/pull/61368)
+
+![string_decoder 타입 정의 PR이 Approve · Merge된 모습](/images/nodejs-internalbinding-typing/02.png)
+
+상당히 빠른 시간 내에 Approved와 Merge가 될 수 있었습니다.
+
+글을 보시는 분들도 internalBinding 타입 정의를 추가하여 기여해보면 좋은 경험이 될 것입니다.

@@ -1,0 +1,387 @@
+---
+title: "[푸쉬온 앱 개발 회고] 처음으로 실 유저 생긴 후기"
+description: "AR로 얼굴을 인식해 푸쉬업을 자동 카운팅하는 앱을 만들고, 처음으로 실제 유저가 생기기까지의 개발 회고."
+date: 2026-02-05
+tags: ["회고", "React Native", "ARKit", "ARCore", "Supabase"]
+published: true
+---
+
+## 앱 소개
+
+[푸쉬온] AR 기술을 통해 얼굴인식으로 푸쉬업을 자동 카운팅할 수 있습니다. 일 / 월 / 년 별로 순위를 확인할 수 있으며, 푸쉬업 기록을 조회할 수 있습니다.
+
+인스타 주소: [https://www.instagram.com/pushonbiz/](https://www.instagram.com/pushonbiz/)
+
+![푸쉬온 앱 소개 배너](/images/pushon-app-retrospective/01.png)
+
+## 개발 하게 된 이유
+
+기술적 성장을 위해 개발했던 과거 프로젝트와 달리, 실제 사용자를 위해 사용성을 고려하여 개발하는 경험을 쌓고 싶었습니다.
+
+자신에게 필요한 서비스를 생각한 결과, 푸쉬업 중 겪는 두 가지 불편함을 발견했습니다:
+
+1. 푸쉬업을 하는 것도 힘이 드는데 개수까지 세려니 힘빠진다.
+2. 푸쉬업을 얼마나 했는지 히스토리를 확인하고 싶다.
+
+이 불편함을 해소하고자 푸쉬업을 인식하고 기록할 수 있는 앱을 기획했습니다.
+
+## 내 앱의 시장성 알아보기
+
+근접 센서를 이용한 앱, 개수를 수동으로 입력하는 앱 등 이미 많은 푸쉬업 앱들이 존재했습니다. 독점하고 있는 앱이 없고 각 앱들이 나쁘지 않은 유저 수를 보유하고 있었습니다.
+
+개수를 수동으로 입력하는 앱조차도 적지 않은 유저가 있었다는 점을 고려하여, 푸쉬업 인식을 잘 구현하고 히스토리 조회를 가능하게 하며 무료로 제공한다면 유저를 모을 수 있겠다고 판단했습니다.
+
+## 개발 시작
+
+### 프로토타입부터 만들기
+
+처음부터 디자인이나 유저 플로우를 설계하지 않았습니다. 푸쉬업 인식 기술을 구현할 수 있는지 검증하는 것이 우선이라고 생각했습니다.
+
+스마트폰을 바닥에 내려두고 푸쉬업을 진행했을 때 갯수가 증가하는 것까지를 프로토타입으로 정했고, iOS와 Android를 모두 지원하기 위해 React Native 프로젝트를 시작했습니다.
+
+### 푸쉬업을 인식하는 방법
+
+처음에는 근접 센서를 이용하려 했으나, 특정 iOS 버전 이후부터 작동하지 않는 문제가 발생했습니다. 최신 iOS 버전을 지원하려는 목표 때문에 다른 방식을 찾아야 했습니다.
+
+ARKit과 같은 AR 기술을 이용해서 전면 카메라로 얼굴을 인식하고 카메라와 얼굴 간의 거리를 측정할 수 있다는 사실을 알게 되었습니다.
+
+#### ARKit으로 푸쉬업 인식 모듈 개발하기
+
+Swift 모듈을 React Native에서 사용할 수 있게 래핑한 라이브러리를 찾았지만, 오류가 발생했고 관련 자료가 부족했습니다.
+
+애플에서 제공해주는 ARKit의 Tracking and visualizing faces 샘플 코드를 발견하고, 이를 실제 기기에서 테스트하며 필요한 기능에 맞게 코드를 수정했습니다.
+
+얼굴과 전면 카메라의 거리를 기반으로 푸쉬업을 인식하고, 푸쉬업 개수와 얼굴이 아래로 내려가고 있는지 알 수 있는 상태를 얻는 데 성공했습니다.
+
+```swift title="PushupRecognition.swift"
+import ARKit
+import UIKit
+
+@objc(PushupRecognition)
+class PushupRecognition: NSObject, ARSessionDelegate {
+
+    @objc var pushupCount: Int = 0
+    @objc var isGoingDown = false
+    private let closeThreshold: Float = 0.25
+    private let farThreshold: Float = 0.35
+
+    func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        guard let faceAnchor = frame.anchors.first(where: { $0 is ARFaceAnchor }) as? ARFaceAnchor else { return }
+
+        let cameraPos = SCNVector3(frame.camera.transform.columns.3.x,
+                                  frame.camera.transform.columns.3.y,
+                                  frame.camera.transform.columns.3.z)
+        let facePos = SCNVector3(faceAnchor.transform.columns.3.x,
+                                faceAnchor.transform.columns.3.y,
+                                faceAnchor.transform.columns.3.z)
+
+        let dx = cameraPos.x - facePos.x
+        let dy = cameraPos.y - facePos.y
+        let dz = cameraPos.z - facePos.z
+        let distance = sqrt(dx*dx + dy*dy + dz*dz)
+
+        print("거리: \(distance)")
+
+        if distance < closeThreshold && !isGoingDown {
+            isGoingDown = true
+            print("푸쉬업 내려가는 중")
+        }
+
+        if distance > farThreshold && isGoingDown {
+            pushupCount += 1
+            isGoingDown = false
+            print("푸쉬업 카운트 증가 → \(pushupCount)")
+        }
+    }
+}
+```
+
+코드는 간단합니다. 전면 카메라와 얼굴의 x, y, z 좌표를 얻을 수 있고, 이 값으로 거리를 구할 수 있습니다. `closeThreshold`와 `farThreshold` 값을 정하고 `isGoingDown` 변수를 활용하여 푸쉬업 개수를 증가시킵니다.
+
+위 네이티브 코드를 PushupManager라는 이름으로 React Native에 브릿지 했습니다.
+
+#### ARCore로 푸쉬업 인식 모듈 개발하기
+
+iOS 푸쉬업 모듈을 만들었던 것과 마찬가지로 ARCore에서 얼굴 인식 관련 데모 프로젝트를 찾고자 했습니다. 깃허브를 둘러보던 중 스노우 어플처럼 얼굴에 효과를 넣어주는 데모앱을 찾았습니다.
+
+[https://developers.google.com/ar/develop/java/augmented-faces/developer-guide](https://developers.google.com/ar/develop/java/augmented-faces/developer-guide)
+
+안드로이드에서도 얼굴과 카메라 간의 거리를 측정하고 푸쉬업을 카운팅할 수 있는 모듈을 만들었습니다.
+
+```java title="PushupRenderer.java"
+try {
+    Frame frame = session.update();
+    if (frame == null) {
+        Log.d(TAG, "RENDERER onDrawFrame: frame이 null입니다");
+        return;
+    }
+
+    Camera camera = frame.getCamera();
+    if (camera == null) {
+        Log.d(TAG, "RENDERER onDrawFrame: camera가 null입니다");
+        return;
+    }
+
+    Collection<AugmentedFace> faces = session.getAllTrackables(AugmentedFace.class);
+    Log.d(TAG, "RENDERER 감지된 얼굴 수: " + faces.size());
+
+    if (faces.isEmpty()) {
+        Log.d(TAG, "RENDERER 얼굴이 감지되지 않음 - 카메라에 얼굴이 보이는지 확인하세요");
+        return;
+    }
+
+    for (AugmentedFace face : faces) {
+        Log.d(TAG, "RENDERER 얼굴 추적 상태: " + face.getTrackingState());
+        if (face.getTrackingState() != TrackingState.TRACKING) {
+            Log.d(TAG, "RENDERER 추적되지 않는 얼굴 건너뜀 - 상태: " + face.getTrackingState());
+            continue;
+        }
+
+        Pose facePose = face.getCenterPose();
+        Pose cameraPose = camera.getPose();
+
+        float dx = facePose.tx() - cameraPose.tx();
+        float dy = facePose.ty() - cameraPose.ty();
+        float dz = facePose.tz() - cameraPose.tz();
+        float distance = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        Log.d(TAG, "RENDERER 얼굴-카메라 거리: " + distance + "m, 상태: " + (isGoingDown ? "내려가는 중" : "올라가는 중"));
+
+        // === 푸쉬업 로직 ===
+        if (distance < CLOSE_THRESHOLD && !isGoingDown) {
+            isGoingDown = true;
+            Log.d(TAG, "RENDERER 푸쉬업 내려가는 중 - 거리: " + distance + "m");
+        }
+        if (distance > FAR_THRESHOLD && isGoingDown) {
+            pushUpCount++;
+            isGoingDown = false;
+            Log.d(TAG, "RENDERER 푸쉬업 카운트 증가 → " + pushUpCount + " (거리: " + distance + "m)");
+
+            // React Native로 이벤트 전송
+            if (reactContext != null) {
+                var params = Arguments.createMap();
+                params.putInt("count", pushUpCount);
+                reactContext
+                    .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                    .emit("onPushupCount", params);
+            }
+        }
+    }
+} catch (Throwable t) {
+    Log.e(TAG, "RENDERER ARCore 프레임 업데이트 예외", t);
+}
+```
+
+안드로이드 쪽은 코드가 길어서 핵심 로직만 표시했습니다. 안드로이드 또한 PushupManager라는 이름으로 네이티브 모듈을 React Native에 브릿지 했습니다.
+
+#### React Native의 usePushUpManager.ts
+
+```typescript title="usePushUpManager.ts"
+const {PushupManager} = NativeModules;
+
+const INITIAL_COUNT = 0;
+const PUSHUP_POLLING_INTERVAL = 100;
+
+function usePushUpManager() {
+  const [pushUpCount, setPushUpCount] = useState(INITIAL_COUNT);
+  const [isTracking, setIsTracking] = useState(false);
+  const [isGoingDown, setIsGoingDown] = useState(false);
+
+  // 타이머
+  const {
+    elapsedTime,
+    isTimerRunning,
+    handleStopTimer,
+    handleResumeTimer,
+    handleStartAndResetTimer,
+  } = useTimer();
+
+  useEffect(() => {
+    if (pushUpCount === 0) {
+      return;
+    }
+    ReactNativeHapticFeedback.trigger('impactHeavy', {
+      enableVibrateFallback: true,
+      ignoreAndroidSystemSettings: false,
+    });
+  }, [pushUpCount]);
+
+  const getPushupCount = useCallback(async () => {
+    try {
+      const currentCount = await PushupManager.getPushupCount();
+      setPushUpCount(currentCount);
+    } catch (error) {
+      console.error('Failed to get pushup count:', error);
+    }
+  }, []);
+
+  const getIsGoingDown = useCallback(async () => {
+    try {
+      const isGoingDownValue = await PushupManager.getIsGoingDown();
+      setIsGoingDown(isGoingDownValue);
+    } catch (error) {
+      console.error('Failed to get is going down:', error);
+    }
+  }, []);
+
+  useInterval(getIsGoingDown, isTracking ? PUSHUP_POLLING_INTERVAL : null);
+  useInterval(getPushupCount, isTracking ? PUSHUP_POLLING_INTERVAL : null);
+
+  const requestCameraPermission = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          {
+            title: '카메라 권한',
+            message: '푸쉬업 카운팅을 위해 카메라 권한이 필요합니다.',
+            buttonNeutral: '나중에',
+            buttonNegative: '취소',
+            buttonPositive: '확인',
+          },
+        );
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      } catch (err) {
+        console.warn(err);
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // 이하 생략...
+}
+```
+
+React Native에서는 PushupManager라는 이름으로 네이티브 모듈을 불러왔습니다. 각 플랫폼을 신경 쓰지 않고 동일하게 구현하기 위해 `PushupManager.getPushupCount()`나 `PushupManager.getIsGoingDown()`과 같이 모듈과 메서드 이름을 통일시켰습니다.
+
+얼굴 인식 관련 데모앱을 찾은 이후에 앱 기능에 맞게 코드를 수정하며 테스트하는 방식이 효과적이었고, 생각 외로 빠른 시간 안에 네이티브 모듈을 개발할 수 있었습니다.
+
+### Supabase 이용하기
+
+푸쉬업 인식을 성공했으니 이제 DB에 데이터를 저장하는 기능과 인증 기능을 붙이는 것이 필요했습니다. 빠른 개발을 위해 Supabase를 사용하여 구현했습니다.
+
+#### supabase 인증
+
+`@react-native-google-signin`, `@react-native-seoul/kakao-login` 라이브러리와 supabase auth를 사용하여 구글 로그인과 카카오 로그인을 구현했습니다.
+
+#### supabase RPC
+
+빠른 개발을 위해 백엔드를 구현하지 않고 프론트엔드 코드 내에 Supabase SDK를 사용하여 DB CRUD를 구현했습니다. 하지만 리더보드처럼 여러 테이블을 조인하고 집계해야 하는 복잡한 쿼리는 클라이언트에서 처리하기 어렵습니다. 그래서 supabase 대시보드에서 RPC 함수를 만들었습니다. RPC는 DB 내부에서 실행되므로 테이블 조인/집계 같은 쿼리 작업에 적합합니다.
+
+#### supabase edge function
+
+회원 탈퇴처럼 민감한 작업은 클라이언트에서 직접 처리할 수 없습니다. Supabase의 Edge Function을 사용하여 서버 사이드에서 처리했습니다.
+
+```typescript title="deleteAccount.ts"
+const response = await fetch(
+  'https://<project-ref>.supabase.co/functions/v1/hyper-function',
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      apikey: SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({userId}),
+  },
+);
+```
+
+hyper-function이라는 Edge Function이 푸쉬업 기록, 프로필 등을 삭제하고 인증 계정까지 제거합니다. Edge Function은 Service Role Key를 사용할 수 있어 RLS 정책을 우회하여 관리자 수준의 작업을 수행할 수 있습니다.
+
+클라이언트에서는 Bearer 토큰으로 본인 인증만 하면 되고, 실제 삭제 로직은 서버에서 안전하게 처리됩니다.
+
+일반적인 CRUD는 SDK로, 복잡한 집계 쿼리는 RPC로, 민감한 관리 작업은 Edge Function으로 역할을 분리하여 Supabase 하나로 백엔드 전체를 구성할 수 있었습니다.
+
+## 앱 디자인 하기
+
+디자인을 먼저 하고 개발에 들어가지 않고 개발을 하는 과정에서 동시에 디자인을 했습니다. 앱 컨셉에 대해 생각하지 않고 기능 동작이나 UX를 위주로 만들다 보니 앱의 디자인이 피트니스와 어울리기 보다는 자주 사용하는 당근이나 토스 같은 느낌이 되었습니다.
+
+첫 번째 디자인한 화면입니다. 피트니스 앱인데 아기자기하고 토스의 홈화면 같은 느낌이 있습니다. 주변 사람들에게 보여주었을 때의 반응은 대부분 "디자인 자체는 나쁘지 않지만 팔굽혀펴기 컨셉과는 맞지 않다"였습니다. 저도 사실 앱의 컨셉을 생각해봤을 때 그렇게 아기자기한 느낌이 어울리지는 않는다고 생각했습니다.
+
+![첫 번째 디자인 화면](/images/pushon-app-retrospective/02.png)
+_첫 번째 디자인 — 아기자기한 토스 홈 느낌_
+
+위 디자인에서 총 2번의 대공사를 거친 끝에 최종적으로 개선된 디자인을 완성했습니다.
+
+![개선된 디자인 화면 1](/images/pushon-app-retrospective/03.png)
+
+![개선된 디자인 화면 2](/images/pushon-app-retrospective/04.png)
+
+![개선된 디자인 화면 3](/images/pushon-app-retrospective/05.png)
+_2번의 대공사를 거쳐 완성한 최종 디자인_
+
+## 사용자 입장에서 생각해보기
+
+원래 푸쉬업 기록을 조회하는 히스토리 스크린에서는 최대 7일 전까지의 데이터만 볼 수 있도록 했습니다. 이후에 이전 버튼과 다음 버튼을 두어 더 이전의 데이터도 볼 수 있도록 구현했습니다.
+
+하지만 사용자 입장에서 생각하지 않고 개발하기 편한대로 구현하고 있었습니다. 앱을 빨리 출시하고 싶어 마음이 조급해졌었습니다. 달력이 UI에 들어간다면 더 고려해야 할 것이 많다고 생각하여 구현하지 않았습니다.
+
+다시 생각해보니 달력 형태로 구현해야 자신의 운동 기록을 한눈에 보고 이전 기록을 보는 데도 편리할 것이었습니다. 그래서 배포 일정이 미루어 지더라도 푸쉬업 히스토리 스크린을 달력 UI 형태로 조회가 가능하도록 구현했습니다.
+
+![달력 형태로 개선한 히스토리 화면](/images/pushon-app-retrospective/06.png)
+
+## 로그인이 계속 풀리는 문제
+
+앱을 어느 정도 구색을 갖춘 후 사용해보았을 때 로그인이 자주 풀리는 문제가 있었습니다. 앱이 백그라운드에 있다가 포그라운드로 돌아올 때 발생하는 문제였고, 이는 상당히 좋지 않은 유저 경험이었습니다. 이때는 플레이스토어의 closed 테스트 기간이었기 때문에 테스트 기간이 끝나기 전까지는 해결해야 했습니다.
+
+이를 해결하기 위해 아래 코드를 추가했습니다.
+
+```typescript
+useEffect(() => {
+  const handleAppStateChange = (nextAppState: string) => {
+    if (nextAppState === 'active') {
+      checkAndRefreshSession(); // 앱이 포그라운드로 돌아올 때 세션 체크
+    }
+  };
+
+  const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+  return () => {
+    subscription?.remove();
+  };
+}, []);
+```
+
+`checkAndRefreshSession` 안에서 만료 5분 전이라면 세션을 갱신하는 로직입니다.
+
+```typescript
+const timeUntilExpiry = expiresAt.getTime() - now.getTime();
+
+if (timeUntilExpiry < 5 * 60 * 1000) {
+  await supabase.auth.refreshSession();
+}
+```
+
+앱이 포그라운드로 돌아올 때마다 세션 만료 시간을 확인하고, 곧 만료될 예정이면 선제적으로 갱신하여 로그인이 풀리는 것을 방지한 코드입니다.
+
+이슈가 잘 해결된 상태로 배포할 수 있었습니다.
+
+## 실제 유저 유입
+
+현재는 플레이스토어에만 배포를 해놓은 상태입니다. 앱 홍보도 아직 하지 않았습니다. 그럼에도 가족이나 지인 외에 다운로드해서 푸쉬업을 한 유저가 열 분이고, 계속해서 사용해주시는 분이 세 분이 있습니다. 많은 수는 아니지만 자신의 아이디어를 구현하고 직접 디자인해서 출시한 앱을 사용하시는 분들이 있는 게 신기할 뿐입니다. 앞으로 이벤트나 기능 추가로 유저를 모으고 유지하고 유료 전환까지 되는 것을 목표로 하고 싶네요.
+
+## 회고
+
+이 프로젝트는 오래 운영해보고 싶습니다. 잘한 점이나 아쉬웠던 점을 회고하고 다음 스텝을 위해 재정비하는 시간을 가져봅니다.
+
+### 잘한 점
+
+- 제한된 정보로 푸쉬업 인식 네이티브 모듈을 빠른 시간 내에 구현했던 것이 잘한 부분이라고 생각합니다.
+- 프론트엔드 코드를 클린하게 작성하기 위해 노력했습니다. 생성형 AI의 도움을 받은 코드들은 대게 복잡했습니다. AI에 의존하지 않고 코드에 대한 주도권을 챙기기 위해 노력했습니다. 데이터 fetching을 Suspense로 선언적으로 관리하고, 프로젝트 내의 useEffect를 최소화하고 되도록 컴포넌트가 SRP 원칙을 지킬 수 있도록 했습니다.
+- 빠르게 만들기 위해 Supabase를 사용했지만 보안이나 클라이언트 부담을 최소화하기 위해 Supabase가 제공하는 다양한 기능을 적극 사용했습니다.
+
+### 개선할 점
+
+- 아직은 코드의 통일성이 미흡합니다. 어떤 곳은 Suspense를 사용하고 있지 않은 코드도 있어서 이를 통일화 시킬 필요가 있어 보입니다.
+- 빠르게 개발하는데 바빠서 백엔드 로직을 프론트엔드 단에 같이 두다 보니 supabase의 RPC나 Edge Function을 사용하더라도 미흡하거나 기능 확장에 제한적인 부분이 있을 겁니다. 유저가 늘어나고 기능이 복잡해진다면 꼭 해결해야 하는 문제입니다. 따라서 백엔드를 분리하고자 하는 계획을 가지고 있습니다.
+- 현재 푸쉬업 인식 네이티브 모듈에서 데이터를 가져오는 방식은 polling 방식입니다. 푸쉬업 변화가 없어도 계속 브릿지를 호출하기 때문에 비효율적입니다.
+
+### 앞으로의 목표
+
+- 위에서 언급한 개선할 점들을 개선할 것입니다.
+- 앱 스토어 배포 및 CI / CD 구축이 중요해 보입니다. 또한 새로운 버전이 배포되었을 때 릴리즈 노트를 생성합니다. 사용자에게 이를 알려주기 위해 모달을 띄우고 릴리즈 노트를 보여주고 있습니다. 이 부분이 자동화가 안 되어 있기 때문에 자동화하는 것이 목표입니다.
+- 기능 추가하기
+  - `푸쉬업을 한 번에 측정하기` / `정해진 세트로 나눠서 하기` 둘 중에 선택해서 푸쉬업을 할 수 있도록 하고 싶습니다.
+- 다양한 이벤트(푸쉬업 한 번에 100개 만들기 챌린지, 특급 전사 되기)를 기획하고 홍보하여 유저를 유입시키고 싶습니다.
