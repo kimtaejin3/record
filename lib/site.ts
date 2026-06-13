@@ -8,6 +8,17 @@ export const site = {
   /** 한 줄 설명 (메타 description, 푸터) */
   description: "프론트엔드를 공부하고 기록하는 공간.",
   /**
+   * 헤더 로고(회전하는 LP판). Flaticon 무료 아이콘은 저작자 표시가 필수다.
+   * author는 Flaticon 아이콘 페이지에 표시된 제작자 이름으로 정확히 채워주세요.
+   */
+  logo: {
+    src: "/assets/lp-disc.png",
+    attribution: {
+      author: "<Flaticon 제작자 이름>",
+      href: "https://www.flaticon.com/free-icons/lp",
+    },
+  },
+  /**
    * 히어로 터미널에 타이핑되는 줄들. 자유롭게 수정하세요.
    * type "cmd" → "$ " 프롬프트가 붙는 명령어 / "out" → 명령 출력.
    */

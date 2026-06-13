@@ -102,6 +102,16 @@ body {
   animation: hero-caret 1s steps(1) infinite;
 }
 
+/* ── 로고: LP판 회전 (hover 시 정지는 group-hover 유틸리티로) ── */
+@keyframes lp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.lp-spin {
+  animation: lp-spin 4s linear infinite;
+}
+
 /* ── 히어로: 픽셀 캐릭터 모션 ──────────────────────────── */
 @keyframes spr-drift {
   from {
@@ -165,7 +175,8 @@ body {
   .spr-drift,
   .spr-bob,
   .spr-float,
-  .spr-shadow {
+  .spr-shadow,
+  .lp-spin {
     animation: none;
   }
 }
