@@ -46,6 +46,10 @@
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
+html {
+  scroll-behavior: smooth; /* 목차 앵커 클릭 시 부드럽게 (reduced-motion이면 자동 해제) */
+}
+
 body {
   background: var(--bg);
   color: var(--fg);
