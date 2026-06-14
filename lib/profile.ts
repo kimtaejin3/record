@@ -10,7 +10,7 @@ export interface Project {
 }
 
 export const profile = {
-  name: "TAESUN",
+  name: "김태진",
   role: "Frontend Engineer",
   tagline: "코드로 직접 돌려보며 프론트엔드를 따라갑니다.",
   email: "ktj3727@gmail.com",

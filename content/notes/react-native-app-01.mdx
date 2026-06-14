@@ -1,0 +1,46 @@
+---
+title: "React Native와 Lottie files로 인터렉션 연습하기 - 투두리스트 앱"
+description: "React Native와 Lottie files로 투두리스트 앱을 만들며 인터랙션을 연습한 기록."
+date: 2026-06-14
+tags: ["React Native", "앱 개발", "lottie files"]
+published: true
+---
+
+React Native와 Lottie files로 간단한 투두리스트 앱을 만들며 인터랙션을 연습했다.
+
+<ClipVideo
+  src="/videos/asset-react-native-app-01.mp4"
+  start={14}
+  end={23}
+  controls
+  muted
+  playsInline
+  autoPlay
+  aria-label="투두리스트 앱 인터랙션 데모"
+/>
+
+_투두리스트 앱 인터랙션 데모_
+
+투두를 완료했을때 완료된 것들은 투두 리스트 맨 끝으로 이동하고 체크 박스 애니메이션을 재생해야 했다. 투두 아이템이 이동하는 애니메이션은 `react-native-reanimated`의 Animated.View를 사용하면 간편하게 구현할 수 있었다.
+
+```js
+
+ <Animated.View entering={ItemEnter} exiting={ItemExit} layout={itemLayout}>
+
+```
+
+원하는 애니메이션 동작을 위해 ItemEnter등의 keyframes를 적용했다. 그저 애니메이션과 duration과 delay만 신경쓰면 되었다.
+
+만들면서 생각보다 고려해야 할 부분이 많았다.
+
+위 애니메이션만 하더라도 투두를 완료 처리 했을 때 같은 자리이면 애니메이션을 빼는 게 자연스러웠다. `keyExtractor`를 통해 완료에 따라 위치가 변하게 되는 경우에만 애니메이션을 추가할 수 있었다.
+투두 완료 토글시 체크박스 애니메이션은 아이템이 아래로 이동하고 나서 멈춘 후에 실행하도록 delay를 주었는데 제자리에 있는 경우 delay를 주면 안 돼서 그 부분도 처리했다.
+
+투두 리스트 애니메이션, 투두 아이템 애니메이션, 체크 박스 애니메이션 모두 delay와 duration 값이 있었고 서로 의존성이 있었다.
+
+AI가 뱉는 코드는 내가 모르는 부분에 대한 구현을 잘 해주지만 코드 퀄리티까지 한 번에 신경써주지는 않는다.
+간단한 거 만드는데 여러 고려할 사항이 생기면서 코드가 금방 지저분해 졌다.
+
+컴포넌트가 한 번에 여러 일을 하면 이를 분리하고 부모에서 들고 있을 필요가 없는 상태는 각 컴포넌트가 관리하는 지역상태로 두었다. 애니메이션 타이밍과 delay값을 매직 넘버가 아닌 상수로 관리했다.
+
+모든 투두를 완료하면 화면 중앙에 lottie를 활용한 애니메이션 에셋을 띄워봤다.

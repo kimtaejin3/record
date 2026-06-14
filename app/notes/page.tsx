@@ -14,7 +14,7 @@ export default function NotesPage() {
     <div className="mx-auto max-w-3xl px-5 py-14 sm:py-16">
       <header className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight">노트</h1>
-        <p className="mt-2 text-muted">개념을 가볍게 정리한 짧은 글들.</p>
+        <p className="mt-2 text-muted">기록 용도</p>
       </header>
 
       {notes.length > 0 ? (

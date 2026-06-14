@@ -185,6 +185,18 @@ html:not(.dark) [data-rehype-pretty-code-figure] code span {
   border: 1px solid var(--border);
   border-radius: 0.75rem;
 }
+/* 본문 동영상 — 이미지와 동일하게 높이 제한 + 가운데 정렬 */
+.prose video {
+  display: block;
+  margin: 1.75rem auto;
+  max-width: 100%;
+  max-height: 560px;
+  width: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: #000;
+}
+
 /* 이미지 바로 아래 이탤릭 한 줄 = 캡션 */
 .prose img + em {
   display: block;

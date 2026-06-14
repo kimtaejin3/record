@@ -3,6 +3,7 @@ import remarkGfm from "remark-gfm";
 import rehypeSlug from "rehype-slug";
 import rehypeAutolinkHeadings from "rehype-autolink-headings";
 import rehypePrettyCode, { type Options } from "rehype-pretty-code";
+import { ClipVideo } from "./clip-video";
 
 const prettyCodeOptions: Options = {
   // 듀얼 테마: 라이트/다크 색을 인라인 CSS 변수로 출력 → globals.css에서 토글
@@ -17,6 +18,7 @@ const prettyCodeOptions: Options = {
 export async function MDXContent({ source }: { source: string }) {
   const { content } = await compileMDX({
     source,
+    components: { ClipVideo },
     options: {
       parseFrontmatter: false,
       mdxOptions: {
