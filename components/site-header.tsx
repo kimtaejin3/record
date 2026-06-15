@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { site } from "@/lib/site";
-import { ThemeToggle } from "./theme-toggle";
 
 const NAV = [
   { href: "/articles", label: "글" },
@@ -51,9 +50,6 @@ export function SiteHeader() {
               {item.label}
             </Link>
           ))}
-          <div className="ml-1">
-            <ThemeToggle />
-          </div>
         </nav>
       </div>
     </header>
